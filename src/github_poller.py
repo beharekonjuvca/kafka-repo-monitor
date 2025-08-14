@@ -40,8 +40,11 @@ def normalize(e: dict) -> dict:
     issue_num = (payload.get("issue") or {}).get("number")
     action = payload.get("action")
     commits = None
+    stars = None
     if evt_type == "PushEvent":
         commits = len(payload.get("commits") or [])
+    if evt_type in ("WatchEvent", "StarEvent"):
+        stars = payload.get("action") 
 
     return {
         "id": e.get("id"),                      
@@ -53,6 +56,7 @@ def normalize(e: dict) -> dict:
         "pr_number": pr_num,
         "issue_number": issue_num,
         "push_commits": commits,                 
+        "star_action": stars,
         "_raw": e,                               
         "_event": evt_type,                      
     }

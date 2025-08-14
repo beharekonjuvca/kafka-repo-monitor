@@ -32,6 +32,16 @@ PER_MIN = 60
 BURST_WINDOW = 30
 per_min_counts = deque(maxlen=BURST_WINDOW)
 
+stars = 0
+ROLLING_WINDOW_SEC = 600
+rolling_commits = deque()
+rolling_prs_opened = deque()
+rolling_prs_closed = deque()
+rolling_issue_comments = deque()
+rolling_forks = deque()
+rolling_stars = deque()
+rolling_pr_merge_hours = deque()
+
 consumer = KafkaConsumer(
     IN_TOPIC,
     bootstrap_servers=BOOTSTRAP,
@@ -75,6 +85,12 @@ while True:
                 actors_roll.append((now_ts, a))
         events_by_type_roll.append((now_ts, etype or "Unknown"))
 
+
+        if etype in ("StarEvent", "WatchEvent"):
+            star_action = e.get("star_action")
+            if star_action in ("created", "started"):
+                stars += 1
+                rolling_stars.append((now_ts, 1))
         cur_bucket = int(now_ts // PER_MIN)
         if last_min_bucket is None:
             last_min_bucket = cur_bucket
@@ -163,6 +179,7 @@ while True:
                 "open_prs_tracked": len(open_pr_created),
                 "issue_comments": issue_comments,
                 "forks": forks,
+                "stars": stars,
 
                 "events_per_min": rate_per_min,
                 "events_by_type_last_10min": events_by_type_10,
@@ -172,9 +189,10 @@ while True:
                 "avg_first_response_min": avg_first_resp_min,
                 "burstiness_fano": burst,
 
-                "commits_last_10min": sum(v for _, v in []), 
+                "commits_last_10min": sum(v for _, v in rolling_commits),
                 "prs_opened_last_10min": sum(1 for _, a in events_by_type_roll if a=="PullRequestEvent"),
-               
+                "stars_last_10min": sum(v for _, v in rolling_stars),
+
                 "commits_today": commits_by_day.get(datetime.now(timezone.utc).date().isoformat(), 0),
             }
             producer.send(OUT_TOPIC, snapshot); producer.flush()
